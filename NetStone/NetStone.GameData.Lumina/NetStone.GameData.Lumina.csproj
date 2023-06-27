@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+
+        <PackageId>NetStone.GameData.Lumina</PackageId>
+        <PackageVersion>1.1.0</PackageVersion>
+        <FileVersion>1.1.0</FileVersion>
+        <Description>Lumina game data bindings for NetStone.</Description>
+        <Authors>goaaats</Authors>
+        <PackageProjectUrl>https://github.com/xivapi/NetStone</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/xivapi/NetStone</RepositoryUrl>
+
+        <PackageLicenseFile>LICENSE</PackageLicenseFile>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+
+        <LangVersion>10.0</LangVersion>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\NetStone\NetStone.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="../LICENSE" Pack="true" PackagePath="\" />
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Lumina" Version="3.10.0" />
+      <PackageReference Include="Lumina.Excel" Version="6.2.1" />
+    </ItemGroup>
+
+</Project>
