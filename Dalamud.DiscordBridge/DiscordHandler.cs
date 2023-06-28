@@ -1,24 +1,16 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Linq;
-using System.Net.Sockets;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Dalamud.DiscordBridge.Model;
-using Dalamud.DiscordBridge.XivApi;
-using Dalamud.Game.ClientState;
 using Dalamud.Game.Text;
 using Dalamud.Logging;
-using Dalamud.Utility;
 using Discord;
-using Discord.Net.Providers.WS4Net;
 using Discord.Webhook;
 using Discord.WebSocket;
 using Lumina.Text;
 using NetStone;
 using NetStone.Model.Parseables.Character;
-using NetStone.Model.Parseables.Search.Character;
 using NetStone.Search.Character;
 
 namespace Dalamud.DiscordBridge
@@ -106,7 +98,6 @@ namespace Dalamud.DiscordBridge
 
             this.socketClient = new DiscordSocketClient(new DiscordSocketConfig
             {
-                WebSocketProvider = WS4NetProvider.Instance,
                 MessageCacheSize = 20, // hold onto the last 20 messages per channel in cache for duplicate checks
                 GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.GuildMessages | GatewayIntents.GuildWebhooks | GatewayIntents.MessageContent,
             });
@@ -637,6 +628,51 @@ namespace Dalamud.DiscordBridge
                     return;
                 }
 
+                if (args[0] == this.plugin.Config.DiscordBotPrefix + "toggleembed" &&
+                    await EnsureOwner(message.Author, message.Channel))
+                {
+                    this.plugin.Config.ForceEmbedFallbackMode = !this.plugin.Config.ForceEmbedFallbackMode;
+                    this.plugin.Config.Save();
+
+                    await SendGenericEmbed(message.Channel,
+                        $"OK! Sending relayed messages in embed fallback mode have been {(this.plugin.Config.ForceEmbedFallbackMode ? "**enabled**." : "**disabled**.\n\nPlease make sure Discord Chat Bridge is allowed to manage webhooks in your channels as needed.")}",
+                        "Embed Fallback Mode set", EmbedColorFine);
+
+                    return;
+                }
+
+                if (args[0] == this.plugin.Config.DiscordBotPrefix + "toggledefaultnameavatar" &&
+                    await EnsureOwner(message.Author, message.Channel))
+                {
+                    this.plugin.Config.ForceDefaultNameAvatar = !this.plugin.Config.ForceDefaultNameAvatar;
+                    this.plugin.Config.Save();
+
+                    await SendGenericEmbed(message.Channel,
+                        $"OK! Sending relayed messages in embed fallback mode have been {(this.plugin.Config.ForceDefaultNameAvatar ? "**enabled**.\n\nPlease make sure you have toggled sender names on, or you won't know who said which chat messages!" : "**disabled**.")}",
+                        "Default Name and Avatar Mode set", EmbedColorFine);
+
+                    if (this.plugin.Config.ForceDefaultNameAvatar && this.socketClient.CurrentUser.Username.ToLower().Contains("discord"))
+                    {
+                        await SendGenericEmbed(message.Channel, "Bot username cannot contain Discord. Using a fallback value until this is changed.", "ERROR - Bot username cannot contain Discord", EmbedColorError);
+                    }
+
+                    return;
+                }
+                
+
+                if (args[0] == this.plugin.Config.DiscordBotPrefix + "togglesender" &&
+                    await EnsureOwner(message.Author, message.Channel))
+                {
+                    this.plugin.Config.SenderInMessage = !this.plugin.Config.SenderInMessage;
+                    this.plugin.Config.Save();
+
+                    await SendGenericEmbed(message.Channel,
+                        $"OK! Discord Chat Bridge **{(this.plugin.Config.SenderInMessage ? "will" : "will not")}** include the sender name in all messages (where possible).",
+                        "Sender In Message Mode set", EmbedColorFine);
+
+                    return;
+                }
+
                 if (args[0] == this.plugin.Config.DiscordBotPrefix + "setcfprefix" &&
                     await EnsureOwner(message.Author, message.Channel))
                 {
@@ -875,12 +911,15 @@ namespace Dalamud.DiscordBridge
                         //$"The following chat kinds are available:\n```all - All regular chat\n{XivChatTypeExtensions.TypeInfoDict.Select(x => $"{x.Value.Slug} - {x.Value.FancyName}").Aggregate((x, y) => x + "\n" + y)}```")
                         .AddField($"{this.plugin.Config.DiscordBotPrefix}unsetchannel", "Works like the previous command, but removes kinds of chat from the list of kinds that are sent to this channel.")
                         .AddField($"{this.plugin.Config.DiscordBotPrefix}listchannel", "List all chat kinds that are sent to this channel.")
+                        .AddField($"{this.plugin.Config.DiscordBotPrefix}toggledefaultnameavatar","Enable or disable sending webhook messages using your configured bot's name and the default bot avatar.\n**WARNING:**This should be combined with enabling the `togglesender` function or you will be removing any distinction between different player messages.")
                         .AddField($"{this.plugin.Config.DiscordBotPrefix}toggledf", "Enable or disable sending duty finder updates to this channel.")
+                        .AddField($"{this.plugin.Config.DiscordBotPrefix}toggleembed", "Enable or disable sending messages as Webhooks (default) or Embeds (Fallback mode)")
+                        .AddField($"{this.plugin.Config.DiscordBotPrefix}togglesender", "Enable or disable sending messages with the sender name in the message.")
                         .AddField($"{this.plugin.Config.DiscordBotPrefix}setduplicatems", "Set time in milliseconds that the bot will check to see if any past messages were the same. Default is 0 ms.")
                         .AddField($"{this.plugin.Config.DiscordBotPrefix}setprefix", "Set a prefix for chat kinds. "
                             + $"This can be an emoji or a string that will be prepended to every chat message that will arrive with this chat kind. "
                             + $"You can also set it to `none` if you want to remove it.\n" 
-                            + $"Format: ``{this.plugin.Config.DiscordBotPrefix}setchannel <kind1,kind2,...> <prefix>``")
+                            + $"Format: ``{this.plugin.Config.DiscordBotPrefix}setprefix <kind1,kind2,...> <prefix>``")
                         .AddField($"{this.plugin.Config.DiscordBotPrefix}setcfprefix", "Set a prefix for duty finder posts. "
                             + $"You can also set it to `none` if you want to remove it.\n" 
                             + $"Format: ``{this.plugin.Config.DiscordBotPrefix}setcfprefix <prefix>``")
@@ -978,6 +1017,10 @@ namespace Dalamud.DiscordBridge
             if (user.Username + "#" + user.Discriminator == this.plugin.Config.DiscordOwnerName) 
                 return true;
 
+            // bandaid for Discord's username changes.
+            if (user.Username == this.plugin.Config.DiscordOwnerName && user.Discriminator == "0000")
+                return true;
+
             if (ulong.TryParse(this.plugin.Config.DiscordOwnerName, out ulong parsed))
                 if (user.Id == parsed)
                     return true;
@@ -985,7 +1028,7 @@ namespace Dalamud.DiscordBridge
             if (errorMessageChannel == null) 
                 return false;
 
-            await SendGenericEmbed(errorMessageChannel, "You are not allowed to run commands for this bot.\n\nIf this is your bot, please use the \"/pdiscord\" command in-game to enter your username.", "Error", EmbedColorError);
+            await SendGenericEmbed(errorMessageChannel, "You are not allowed to run commands for this bot.\n\nIf this is your bot, please use the \"/pdiscord\" command in-game to enter your username or Discord User ID number.", "Error", EmbedColorError);
 
             return false;
         }
@@ -1186,6 +1229,8 @@ namespace Dalamud.DiscordBridge
 
             this.plugin.Config.PrefixConfigs.TryGetValue(chatType, out var prefix);
 
+            bool senderInMessage = this.plugin.Config.SenderInMessage;
+
             var chatTypeText = this.plugin.Config.CustomSlugsConfigs.TryGetValue(chatType, out var x) ? x : chatType.GetSlug();
             
 
@@ -1210,7 +1255,9 @@ namespace Dalamud.DiscordBridge
                     continue;
                 }
 
-                var messageContent = chatType != XivChatTypeExtensions.IpcChatType ? $"{prefix}**[{chatTypeText}]** {message}" : $"{prefix} {message}";
+                var messageContent = senderInMessage ? $"{displayName}: {message}" : message;
+
+                messageContent = chatType != XivChatTypeExtensions.IpcChatType ? $"{prefix}**[{chatTypeText}]** {messageContent}" : $"{prefix} {messageContent}";
 
 
                 // add handling for webhook vs embed here
@@ -1223,6 +1270,10 @@ namespace Dalamud.DiscordBridge
                     var DMChannel = await this.socketClient.GetDMChannelAsync(channelConfig.Key);
                     await SendPrettyEmbed((ISocketMessageChannel)DMChannel, messageContent, displayName, avatarUrl, EmbedColorFine);
                     PluginLog.Debug("SendChatEvent sent to DMs.");
+                }
+                else if (this.plugin.Config.ForceEmbedFallbackMode)
+                {
+                    await SendPrettyEmbed((ISocketMessageChannel)socketChannel, $"{messageContent}", $"{displayName}", avatarUrl, EmbedColorFine);
                 }
                 else if (!hasManageWebHooks)
                 {
@@ -1240,6 +1291,12 @@ namespace Dalamud.DiscordBridge
 
                     if (webhookClient != null)
                     {
+                        if (this.plugin.Config.ForceDefaultNameAvatar)
+                        {
+                            displayName = this.socketClient.CurrentUser.Username.ToLower().Contains("discord") ? "Dalamud Chat Bridge" : this.socketClient.CurrentUser.Username;
+                            avatarUrl = plugin.Config.DefaultAvatarURL;
+                        }
+                        
                         await webhookClient.SendMessageAsync(
                             messageContent, username: displayName, avatarUrl: avatarUrl,
                             allowedMentions: new AllowedMentions(AllowedMentionTypes.Roles | AllowedMentionTypes.Users | AllowedMentionTypes.None)

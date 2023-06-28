@@ -6,5 +6,4 @@ public struct LanguageStrings
     public string De { get; set; }
     public string Ja { get; set; }
     public string Fr { get; set; }
-    public string Ko { get; set; }
 }

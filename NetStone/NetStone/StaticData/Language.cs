@@ -13,5 +13,4 @@ public enum Language
     English = 1 << 1,
     German = 1 << 2,
     French = 1 << 3,
-    Korean = 1 << 4,
 }

@@ -2,18 +2,13 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks;
 using Dalamud.DiscordBridge.Model;
-using Dalamud.DiscordBridge.XivApi;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Logging;
-using Dalamud.Plugin;
-using Lumina;
 
 namespace Dalamud.DiscordBridge
 {
@@ -42,11 +37,6 @@ namespace Dalamud.DiscordBridge
             }, {
                 ClientLanguage.French, new Regex[] {
                     new Regex(@"^Un servant a vendu (?<item>.+) pour (?<value>[\d,.]+) gil à (?:.+)\.$", RegexOptions.Compiled)
-                }
-            }, {
-                ClientLanguage.Korean, new Regex[] {
-                    new Regex(@"^(?:.+)장터에 (?<origValue>[\d,.]+)길에 출품한 (?<item>.*)[이가] 판매되어 (?<value>[\d,.]+)길을 획득했습니다.$", RegexOptions.Compiled),
-                new Regex(@"^(?:.+)장터에 (?<origValue>[\d,.]+)길에 출품한 (?<item>.*)×(?<count>[\d,.]+)개가 판매되어 (?<value>[\d,.]+)길을 획득했습니다.$", RegexOptions.Compiled)
                 }
             }
         };
